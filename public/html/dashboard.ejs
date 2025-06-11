@@ -44,7 +44,7 @@
           <div class="flex items-center border-2 border-[#81d4fa] rounded bg-[#2b4d6d] px-1 py-1">
             <i class="fas fa-server text-white mr-1 text-xs"></i>
             <select id="serverSelect" name="server" class="w-full bg-[#2b4d6d] text-white text-xs focus:outline-none">
-              <option value="main">Fire PS</option>
+              <option value="main">Nebula Development</option>
               <option value="test">Dream PS</option>
               <option value="dev">Development</option>
             </select>
@@ -96,8 +96,8 @@
       if (!uName || !uPass) {
         showError('Username or Password is empty');
         return;
-      } else if (uName.length < 4 || uPass.length < 4) {
-        showError('Username or Password must be at least 4 characters long');
+      } else if (uName.length < 3 || uPass.length < 3) {
+        showError('Username or Password must be at least 3 characters long');
         return;
       }
 
