@@ -77,7 +77,7 @@ app.all('/player/growid/checktoken', (req, res) => {
     }
 });
 app.get('/', function (req, res) {
-   res.send('Rabbid Premium Loginurl Created By @Lecco');
+   res.send('Nature Backend By @Lecco');
 });
 
 app.listen(5000, function () {
