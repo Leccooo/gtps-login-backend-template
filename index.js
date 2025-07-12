@@ -1,79 +1,136 @@
-  document.addEventListener('DOMContentLoaded', () => {
-    const serverSelect = document.getElementById('serverSelect');
-    const loginForm = document.getElementById('loginForm');
-    const loginButton = document.getElementById('loginButton');
-    const registerButton = document.getElementById('registerButton');
+const express = require('express');
+const app = express();
+const bodyParser = require('body-parser');
+const rateLimiter = require('express-rate-limit');
+const compression = require('compression');
+const path = require('path');
 
-    function updateFormAction() {
-      const selected = serverSelect.value;
-      let actionURL = '';
+// Middleware kompresi
+app.use(compression({
+    level: 5,
+    threshold: 0,
+    filter: (req, res) => {
+        if (req.headers['x-no-compression']) {
+            return false;
+        }
+        return compression.filter(req, res);
+    }
+}));
 
-      switch (selected) {
-        case 'main': // Atlantis
-          actionURL = 'http://188.166.243.218:5000/player/growid/login/validate';
-          break;
-        case 'test': // Dream PS (ubah IP jika punya)
-          actionURL = 'http://127.0.0.1:5000/player/growid/login/validate';
-          break;
-        case 'dev': // Development
-          actionURL = 'http://34.122.252.255:5000/player/growid/login/validate';
-          break;
-        default:
-          actionURL = '/player/growid/login/validate';
-      }
+// EJS dan pengaturan dasar
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'public/html'));
+app.set('trust proxy', 1);
 
-      loginForm.setAttribute('action', actionURL);
+// Middleware header + logger
+app.use(function (req, res, next) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    console.log(`[${new Date().toLocaleString()}] ${req.method} ${req.url} - ${res.statusCode}`);
+    next();
+});
+
+// Body parser
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
+
+// Rate limiter
+app.use(rateLimiter({
+    windowMs: 5 * 60 * 1000,
+    max: 800,
+    headers: true
+}));
+
+// Favicon handler
+app.all('/favicon.ico', (req, res) => {
+    res.status(204).end();
+});
+
+// Register endpoint
+app.all('/player/register', (req, res) => {
+    res.send("Coming soon...");
+});
+
+// Login dashboard (optional rendering)
+app.all('/player/login/dashboard', (req, res) => {
+    const tData = {};
+    try {
+        const uData = JSON.stringify(req.body).split('"')[1].split('\\n');
+        const uName = uData[0].split('|');
+        const uPass = uData[1].split('|');
+
+        for (let i = 0; i < uData.length - 1; i++) {
+            const d = uData[i].split('|');
+            tData[d[0]] = d[1];
+        }
+
+        if (uName[1] && uPass[1]) {
+            res.redirect('/player/growid/login/validate');
+            return;
+        }
+    } catch (err) {
+        console.log(`Warning: ${err}`);
     }
 
-    // Jalankan saat pertama kali halaman dimuat
-    updateFormAction();
+    res.render('dashboard.ejs', { data: tData });
+});
 
-    // Ubah form action jika pilihan server berubah
-    serverSelect.addEventListener('change', updateFormAction);
+// GrowID login validator
+app.all('/player/growid/login/validate', (req, res) => {
+    const _token = req.body._token;
+    const growId = req.body.growId;
+    const password = req.body.password;
 
-    // Validasi dan kirim form login
-    loginButton.addEventListener('click', function (event) {
-      event.preventDefault();
-      const uName = document.getElementById('loginGrowId').value;
-      const uPass = document.getElementById('loginPassword').value;
-
-      if (!uName || !uPass) {
-        showError('Username or Password is empty');
-        return;
-      } else if (uName.length < 3 || uPass.length < 3) {
-        showError('Username or Password must be at least 3 characters long');
-        return;
-      }
-
-      document.getElementById('formType').value = 'log';
-      localStorage.setItem('growId', uName);
-      loginForm.submit();
-    });
-
-    // Tombol register
-    registerButton.addEventListener('click', function () {
-      document.getElementById('loginGrowId').value = '';
-      document.getElementById('loginPassword').value = '';
-      document.getElementById('formType').value = 'register';
-      loginForm.submit();
-    });
-
-    // Toggle show/hide password
-    document.getElementById('toggleLogPassword').addEventListener('click', function () {
-      const field = document.getElementById('loginPassword');
-      const type = field.getAttribute('type') === 'password' ? 'text' : 'password';
-      field.setAttribute('type', type);
-      this.innerHTML = type === 'text'
-        ? '<i class="fas fa-eye-slash"></i>'
-        : '<i class="fas fa-eye"></i>';
-    });
-
-    // Tampilkan error
-    function showError(message) {
-      const errorDiv = document.getElementById('errorDiv');
-      const errorMessage = document.getElementById('errorMessage');
-      errorDiv.classList.remove('hidden');
-      errorMessage.innerText = message;
+    if (!growId || !password) {
+        return res.status(400).json({ status: "error", message: "Missing credentials" });
     }
-  });
 
+    const token = Buffer.from(
+        `_token=${_token}&growId=${growId}&password=${password}`
+    ).toString('base64');
+
+    res.json({
+        status: "success",
+        message: "Account Validated.",
+        token: token,
+        url: "",
+        accountType: "growtopia",
+        accountAge: 2
+    });
+});
+
+// Token checker
+app.all('/player/growid/checktoken', (req, res) => {
+    const { refreshToken } = req.body;
+
+    try {
+        const decoded = Buffer.from(refreshToken, 'base64').toString('utf-8');
+
+        if (typeof decoded !== 'string' || !decoded.includes('growId=')) {
+            return res.render('dashboard.ejs');
+        }
+
+        res.json({
+            status: 'success',
+            message: 'Account Validated.',
+            token: refreshToken,
+            url: '',
+            accountType: 'growtopia',
+            accountAge: 2
+        });
+    } catch (error) {
+        console.log("Redirecting to dashboard due to invalid token");
+        res.render('dashboard.ejs');
+    }
+});
+
+// Default route
+app.get('/', (req, res) => {
+    res.send('Nature Backend By @Lecco');
+});
+
+// Listen
+const PORT = 5000;
+app.listen(PORT, () => {
+    console.log(`✅ Listening on port ${PORT}`);
+});
