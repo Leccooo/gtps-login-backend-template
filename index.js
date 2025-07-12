@@ -1,4 +1,3 @@
-<script>
   document.addEventListener('DOMContentLoaded', () => {
     const serverSelect = document.getElementById('serverSelect');
     const loginForm = document.getElementById('loginForm');
@@ -77,4 +76,4 @@
       errorMessage.innerText = message;
     }
   });
-</script>
+
